@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+script=$0
+case $script in
+*/*) ;;
+*) script=$(command -v -- "$script") ;;
+esac
+bin=$(CDPATH= cd -- "$(dirname -- "$script")" && pwd)/omause
+size=$("$bin" --size)
+cols=${size%% *}
+rows=${size##* }
+exec foot --app-id=omause --title=OmaUse -W "${cols}x${rows}" -e "$bin"
