@@ -10,11 +10,20 @@ The bar and percentage are green under 70%, yellow from 70% to 89%, and red at 9
 
 ```sh
 ./install.sh
+./install.sh --uninstall   # or -u
 ```
 
 This builds `omause` and installs `omause-launch` into `~/.local/bin`, and adds an **OmaUse** launcher in `~/.local/share/applications`. `omause-launch` measures the table, opens foot at that character size, and Hyprland floats and centers the OmaUse window.
 
-`go` and `foot` are required. ZFS pools are included when `zpool` is available; otherwise only filesystems are shown.
+The installer asks whether to:
+
+- bind **SUPER + SHIFT + U** in `~/.config/hypr/bindings.lua`
+- install a crontab entry that runs `omause -q` every minute
+- open the quiet-mode config in your editor (`VISUAL` / `EDITOR`)
+
+Uninstall removes the hotkey, binaries, desktop entry, crontab, and quiet-mode state, then asks whether to delete the config too.
+
+`go` and `foot` are required to install. ZFS pools are included when `zpool` is available; otherwise only filesystems are shown.
 
 ## Run
 
@@ -22,12 +31,7 @@ This builds `omause` and installs `omause-launch` into `~/.local/bin`, and adds 
 omause
 ```
 
-Or launch **OmaUse** from the app menu. A key can do the same by running `omause-launch`, which is what opens the floating window. In `~/.config/hypr/bindings.lua`:
-
-```lua
-hl.unbind("SUPER + SHIFT + U")
-o.bind("SUPER + SHIFT + U", "OmaUse", { launch = "omause-launch" })
-```
+Or launch **OmaUse** from the app menu, or use the hotkey if you installed it.
 
 ## Quiet mode
 
