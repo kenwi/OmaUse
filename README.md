@@ -47,12 +47,17 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
   "enabled": true,
   "thresholds": [
     { "percent": 80 },
-    { "percent": 90, "script": "/home/you/.config/omause/cleanup.sh" }
+    { "percent": 90 },
+    {
+      "percent": 100,
+      "drive": "/pool",
+      "script": "/home/you/.config/omause/cleanup-pool.sh"
+    }
   ]
 }
 ```
 
-Set `"enabled": false` to keep thresholds defined but skip all alerts.
+Set `"enabled": false` to keep thresholds defined but skip all alerts. An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive.
 
 Scripts receive `OMAUSE_NAME`, `OMAUSE_WHERE`, `OMAUSE_USE_PCT`, `OMAUSE_THRESHOLD`, and size fields in the environment. A systemd user timer or cron entry can run `omause -q` on an interval.
 

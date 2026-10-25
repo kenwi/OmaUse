@@ -6,6 +6,12 @@
     },
     {
       "percent": 90
+    },
+    {
+      "percent": 100,
+      "drive": "/pool",
+      "script": "/home/USER/.config/omause/cleanup-pool.sh"
     }
   ]
 }
+

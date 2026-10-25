@@ -2,6 +2,7 @@ package quiet
 
 import (
 	"math"
+	"strings"
 
 	"usage/internal/usage"
 )
@@ -20,11 +21,40 @@ func VolumeKey(v usage.Volume) string {
 	return "pool:" + v.Name
 }
 
+// appliesTo is true for global thresholds, or when Drive matches this volume.
+func (t Threshold) appliesTo(v usage.Volume) bool {
+	if t.Drive == "" {
+		return true
+	}
+	return driveMatches(t.Drive, v)
+}
+
+func driveMatches(drive string, v usage.Volume) bool {
+	drive = normalizeDrive(drive)
+	if drive == "" {
+		return true
+	}
+	for _, cand := range []string{VolumeKey(v), v.Where, v.Name} {
+		if cand == "" || cand == "-" {
+			continue
+		}
+		if normalizeDrive(cand) == drive {
+			return true
+		}
+		// pool:name keys also match a bare pool name.
+		if strings.HasPrefix(cand, "pool:") && normalizeDrive(strings.TrimPrefix(cand, "pool:")) == drive {
+			return true
+		}
+	}
+	return false
+}
+
 // Evaluate compares current usage to configured thresholds.
 // A threshold emits an event when use% reaches it and it is not already
 // marked fired. When use% falls below that level, the fired mark is cleared.
 // New crossings are not marked fired here - call MarkFired after notify/script
 // succeed so a failed alert can retry on the next quiet run.
+// Thresholds with Drive set only apply to that volume.
 func Evaluate(volumes []usage.Volume, thresholds []Threshold, st State) (events []Event, next State) {
 	next = State{Fired: map[string][]int{}}
 	if st.Fired == nil {
@@ -41,13 +71,15 @@ func Evaluate(volumes []usage.Volume, thresholds []Threshold, st State) (events 
 		prev := st.Fired[key]
 		kept := make([]int, 0, len(prev))
 		for _, t := range thresholds {
+			if !t.appliesTo(vol) {
+				continue
+			}
 			if pct >= t.Percent {
 				if hasFired(prev, t.Percent) {
 					kept = addFired(kept, t.Percent)
 				} else {
 					events = append(events, Event{Volume: vol, Threshold: t})
 				}
-				continue
 			}
 			// Below threshold: reset (omit from kept).
 		}

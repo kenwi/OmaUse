@@ -7,13 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const configFileName = "config.json"
 
 // Threshold is a use-percent level that can notify and optionally run a script.
+// Drive, when set, limits the threshold to that volume (mount path or name).
 type Threshold struct {
 	Percent int    `json:"percent"`
+	Drive   string `json:"drive,omitempty"`
 	Script  string `json:"script,omitempty"`
 }
 
@@ -94,21 +97,44 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// normalize sorts thresholds ascending and keeps one entry per percent
-// (later definitions win, so a script can replace a bare percent).
+type thresholdKey struct {
+	pct   int
+	drive string
+}
+
+// normalize sorts thresholds by percent then drive, and keeps one entry per
+// (percent, drive) pair (later definitions win).
 func (c *Config) normalize() {
-	byPct := map[int]Threshold{}
-	order := make([]int, 0)
+	byKey := map[thresholdKey]Threshold{}
+	order := make([]thresholdKey, 0)
 	for _, t := range c.Thresholds {
-		if _, ok := byPct[t.Percent]; !ok {
-			order = append(order, t.Percent)
+		t.Drive = normalizeDrive(t.Drive)
+		k := thresholdKey{t.Percent, t.Drive}
+		if _, ok := byKey[k]; !ok {
+			order = append(order, k)
 		}
-		byPct[t.Percent] = t
+		byKey[k] = t
 	}
-	sort.Ints(order)
+	sort.SliceStable(order, func(i, j int) bool {
+		if order[i].pct != order[j].pct {
+			return order[i].pct < order[j].pct
+		}
+		return order[i].drive < order[j].drive
+	})
 	out := make([]Threshold, 0, len(order))
-	for _, pct := range order {
-		out = append(out, byPct[pct])
+	for _, k := range order {
+		out = append(out, byKey[k])
 	}
 	c.Thresholds = out
+}
+
+func normalizeDrive(drive string) string {
+	drive = strings.TrimSpace(drive)
+	if drive == "" || drive == "-" {
+		return ""
+	}
+	if drive != "/" {
+		drive = strings.TrimRight(drive, "/")
+	}
+	return drive
 }

@@ -113,7 +113,8 @@ func TestParseConfig(t *testing.T) {
 	cfg, err := parseConfig([]byte(`{
   "thresholds": [
     {"percent": 90, "script": "/tmp/clean.sh"},
-    {"percent": 80}
+    {"percent": 80},
+    {"percent": 100, "drive": "/pool", "script": "/tmp/pool.sh"}
   ]
 }`))
 	if err != nil {
@@ -122,11 +123,14 @@ func TestParseConfig(t *testing.T) {
 	if !cfg.AlertsEnabled() {
 		t.Fatal("omitted enabled should default on")
 	}
-	if len(cfg.Thresholds) != 2 || cfg.Thresholds[0].Percent != 80 || cfg.Thresholds[1].Percent != 90 {
+	if len(cfg.Thresholds) != 3 {
+		t.Fatalf("want 3 thresholds, got %+v", cfg.Thresholds)
+	}
+	if cfg.Thresholds[0].Percent != 80 || cfg.Thresholds[1].Percent != 90 || cfg.Thresholds[2].Percent != 100 {
 		t.Fatalf("normalize order: %+v", cfg.Thresholds)
 	}
-	if cfg.Thresholds[1].Script != "/tmp/clean.sh" {
-		t.Fatalf("script: %+v", cfg.Thresholds[1])
+	if cfg.Thresholds[2].Drive != "/pool" || cfg.Thresholds[2].Script != "/tmp/pool.sh" {
+		t.Fatalf("drive threshold: %+v", cfg.Thresholds[2])
 	}
 
 	off, err := parseConfig([]byte(`{"enabled": false, "thresholds": [{"percent": 80}]}`))
@@ -135,6 +139,51 @@ func TestParseConfig(t *testing.T) {
 	}
 	if off.AlertsEnabled() {
 		t.Fatal("enabled:false should disable alerts")
+	}
+}
+
+func TestEvaluateDriveSpecific(t *testing.T) {
+	thresholds := []Threshold{
+		{Percent: 80},
+		{Percent: 90},
+		{Percent: 100, Drive: "/pool", Script: "/tmp/pool.sh"},
+	}
+	root := usage.Volume{Name: "root", Where: "/", UsePct: 100, HasSize: true}
+	pool := usage.Volume{Name: "pool", Where: "/pool", UsePct: 100, HasSize: true}
+
+	events, _ := Evaluate([]usage.Volume{root, pool}, thresholds, State{})
+	rootEvents := 0
+	poolEvents := 0
+	poolScript := false
+	for _, ev := range events {
+		switch VolumeKey(ev.Volume) {
+		case "/":
+			rootEvents++
+			if ev.Threshold.Drive != "" {
+				t.Fatalf("root should not get drive-specific event: %+v", ev.Threshold)
+			}
+		case "/pool":
+			poolEvents++
+			if ev.Threshold.Percent == 100 && ev.Threshold.Script != "" {
+				poolScript = true
+			}
+		}
+	}
+	if rootEvents != 2 {
+		t.Fatalf("root want global 80+90, got %d events", rootEvents)
+	}
+	if poolEvents != 3 {
+		t.Fatalf("pool want 80+90+100, got %d events", poolEvents)
+	}
+	if !poolScript {
+		t.Fatal("pool 100%% script event missing")
+	}
+
+	// Drive match by name also works.
+	named := []Threshold{{Percent: 95, Drive: "pool"}}
+	events, _ = Evaluate([]usage.Volume{pool}, named, State{})
+	if len(events) != 1 {
+		t.Fatalf("name match: events=%v", events)
 	}
 }
 
