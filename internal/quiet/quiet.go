@@ -23,12 +23,15 @@ func Run() error {
 		return err
 	}
 	events, next := Evaluate(snap.Volumes, cfg.Thresholds, st)
+	if len(events) == 0 {
+		return SaveState(next)
+	}
+	if err := notifyEvents(events, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "omause: notify: %v\n", err)
+		return SaveState(next)
+	}
 	for _, ev := range events {
 		key := VolumeKey(ev.Volume)
-		if err := notifyEvent(ev); err != nil {
-			fmt.Fprintf(os.Stderr, "omause: notify %s at %d%%: %v\n", key, ev.Threshold.Percent, err)
-			continue
-		}
 		if ev.Threshold.Script != "" {
 			if err := runScript(ev); err != nil {
 				fmt.Fprintf(os.Stderr, "omause: script %s for %s at %d%%: %v\n", ev.Threshold.Script, key, ev.Threshold.Percent, err)

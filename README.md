@@ -45,6 +45,7 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
 ```json
 {
   "enabled": true,
+  "flux": false,
   "thresholds": [
     { "percent": 80 },
     { "percent": 90 },
@@ -57,7 +58,7 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
 }
 ```
 
-Set `"enabled": false` to keep thresholds defined but skip all alerts. An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive.
+Set `"enabled": false` to keep thresholds defined but skip all alerts. Set `"flux": true` to also send each alert to your phone with `flux notify`. An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive.
 
 Scripts receive `OMAUSE_NAME`, `OMAUSE_WHERE`, `OMAUSE_USE_PCT`, `OMAUSE_THRESHOLD`, and size fields in the environment. A systemd user timer or cron entry can run `omause -q` on an interval.
 

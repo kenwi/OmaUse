@@ -30,7 +30,7 @@ else
 	install -m 644 "$root/config.example.json" "$configfile"
 	echo "Config: $configfile"
 fi
-echo "Edit $configfile to set thresholds, drives, and scripts for quiet mode (-q)."
+echo "Edit $configfile to set thresholds, drives, scripts, and flux for quiet mode (-q)."
 
 
 cat > "${appdir}/omause.desktop" << 'EOF'

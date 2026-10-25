@@ -23,7 +23,9 @@ type Threshold struct {
 // Config is the quiet-mode alert settings under ~/.config/omause.
 type Config struct {
 	// Enabled turns threshold alerts on or off. Omitted means enabled.
-	Enabled    *bool       `json:"enabled"`
+	Enabled *bool `json:"enabled"`
+	// Flux also sends each alert to the phone via `flux notify`.
+	Flux       bool        `json:"flux"`
 	Thresholds []Threshold `json:"thresholds"`
 }
 

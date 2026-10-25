@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "flux": false,
   "thresholds": [
     {
       "percent": 80

@@ -140,6 +140,14 @@ func TestParseConfig(t *testing.T) {
 	if off.AlertsEnabled() {
 		t.Fatal("enabled:false should disable alerts")
 	}
+
+	withFlux, err := parseConfig([]byte(`{"flux": true, "thresholds": [{"percent": 80}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !withFlux.Flux {
+		t.Fatal("flux:true should enable flux notify")
+	}
 }
 
 func TestEvaluateDriveSpecific(t *testing.T) {
@@ -193,5 +201,33 @@ func TestVolumeKey(t *testing.T) {
 	}
 	if got := VolumeKey(usage.Volume{Name: "tank", Where: "-", Kind: "zfs pool"}); got != "pool:tank" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFormatAlerts(t *testing.T) {
+	one := []Event{{
+		Volume:    usage.Volume{Name: "LaCie", Where: "/mnt/lacie", UsePct: 92, HasSize: true},
+		Threshold: Threshold{Percent: 90},
+	}}
+	headline, body := formatAlerts(one)
+	if headline != "Disk usage: LaCie (/mnt/lacie)" {
+		t.Fatalf("single headline: %q", headline)
+	}
+	if body != "LaCie (/mnt/lacie) is at 92% (threshold 90%)" {
+		t.Fatalf("single body: %q", body)
+	}
+
+	many := []Event{
+		{Volume: usage.Volume{Name: "LaCie", Where: "/mnt/lacie", UsePct: 92, HasSize: true}, Threshold: Threshold{Percent: 80}},
+		{Volume: usage.Volume{Name: "LaCie", Where: "/mnt/lacie", UsePct: 92, HasSize: true}, Threshold: Threshold{Percent: 90}},
+		{Volume: usage.Volume{Name: "pool", Where: "/pool", UsePct: 87, HasSize: true}, Threshold: Threshold{Percent: 80}},
+	}
+	headline, body = formatAlerts(many)
+	if headline != "Disk usage high" {
+		t.Fatalf("multi headline: %q", headline)
+	}
+	want := "LaCie (/mnt/lacie) at 92% (threshold 80%)\nLaCie (/mnt/lacie) at 92% (threshold 90%)\npool (/pool) at 87% (threshold 80%)"
+	if body != want {
+		t.Fatalf("multi body:\n%s", body)
 	}
 }
