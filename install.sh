@@ -21,6 +21,14 @@ go build -C "$root" -o "$bin" ./cmd/omause
 
 install -m 755 "$root/omause-launch" "${bindir}/omause-launch"
 
+configdir=${XDG_CONFIG_HOME:-$HOME/.config}/omause
+mkdir -p "$configdir"
+if [ ! -e "$configdir/config.json" ]; then
+	install -m 644 "$root/config.example.json" "$configdir/config.json"
+	echo "Config: $configdir/config.json"
+fi
+
+
 cat > "${appdir}/omause.desktop" << 'EOF'
 [Desktop Entry]
 Version=1.0

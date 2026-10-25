@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "thresholds": [
+    {
+      "percent": 80
+    },
+    {
+      "percent": 90
+    }
+  ]
+}
