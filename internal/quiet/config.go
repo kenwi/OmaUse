@@ -20,13 +20,49 @@ type Threshold struct {
 	Script  string `json:"script,omitempty"`
 }
 
+// FluxSettings controls phone alerts via `flux notify`.
+// JSON may be a bool ("flux": true) or an object:
+//
+//	"flux": { "enabled": true, "announce-hostname": true }
+type FluxSettings struct {
+	Enabled          bool `json:"enabled"`
+	AnnounceHostname bool `json:"announce-hostname"`
+}
+
+// UnmarshalJSON accepts a bool or an object for backward compatibility.
+func (f *FluxSettings) UnmarshalJSON(data []byte) error {
+	s := strings.TrimSpace(string(data))
+	switch s {
+	case "true":
+		*f = FluxSettings{Enabled: true}
+		return nil
+	case "false", "null", "":
+		*f = FluxSettings{}
+		return nil
+	}
+	var obj struct {
+		Enabled          *bool `json:"enabled"`
+		AnnounceHostname bool  `json:"announce-hostname"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("flux: want bool or object, got %s", s)
+	}
+	if obj.Enabled != nil {
+		f.Enabled = *obj.Enabled
+	} else {
+		// Object form without enabled implies flux is on.
+		f.Enabled = true
+	}
+	f.AnnounceHostname = obj.AnnounceHostname
+	return nil
+}
+
 // Config is the quiet-mode alert settings under ~/.config/omause.
 type Config struct {
 	// Enabled turns threshold alerts on or off. Omitted means enabled.
-	Enabled *bool `json:"enabled"`
-	// Flux also sends each alert to the phone via `flux notify`.
-	Flux       bool        `json:"flux"`
-	Thresholds []Threshold `json:"thresholds"`
+	Enabled    *bool        `json:"enabled"`
+	Flux       FluxSettings `json:"flux"`
+	Thresholds []Threshold  `json:"thresholds"`
 }
 
 // AlertsEnabled is true when threshold checks should run.

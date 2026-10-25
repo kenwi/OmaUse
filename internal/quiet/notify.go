@@ -38,8 +38,14 @@ func notifyEvents(events []Event, cfg Config) error {
 	if err := desktopNotify(headline, body, urgency); err != nil {
 		return err
 	}
-	if cfg.Flux {
-		if err := fluxNotify(headline, body); err != nil {
+	if cfg.Flux.Enabled {
+		fluxHeadline := headline
+		if cfg.Flux.AnnounceHostname {
+			if host, err := os.Hostname(); err == nil && host != "" {
+				fluxHeadline = headline + " on " + host
+			}
+		}
+		if err := fluxNotify(fluxHeadline, body); err != nil {
 			return fmt.Errorf("flux: %w", err)
 		}
 	}

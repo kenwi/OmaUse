@@ -145,8 +145,16 @@ func TestParseConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !withFlux.Flux {
-		t.Fatal("flux:true should enable flux notify")
+	if !withFlux.Flux.Enabled || withFlux.Flux.AnnounceHostname {
+		t.Fatalf("flux:true => %+v", withFlux.Flux)
+	}
+
+	withHost, err := parseConfig([]byte(`{"flux": {"enabled": true, "announce-hostname": true}, "thresholds": [{"percent": 80}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !withHost.Flux.Enabled || !withHost.Flux.AnnounceHostname {
+		t.Fatalf("flux object => %+v", withHost.Flux)
 	}
 }
 

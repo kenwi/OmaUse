@@ -1,6 +1,9 @@
 {
   "enabled": true,
-  "flux": false,
+  "flux": {
+    "enabled": false,
+    "announce-hostname": false
+  },
   "thresholds": [
     {
       "percent": 80
@@ -15,4 +18,3 @@
     }
   ]
 }
-
