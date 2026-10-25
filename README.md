@@ -18,10 +18,10 @@ This builds `omause` and installs `omause-launch` into `~/.local/bin`, and adds 
 The installer asks whether to:
 
 - bind **SUPER + SHIFT + U** in `~/.config/hypr/bindings.lua`
-- install a crontab entry that runs `omause -q` every minute
+- install a systemd user timer that runs `omause -q` every minute
 - open the quiet-mode config in your editor (`VISUAL` / `EDITOR`)
 
-Uninstall removes the hotkey, binaries, desktop entry, crontab, and quiet-mode state, then asks whether to delete the config too.
+Uninstall removes the hotkey, binaries, desktop entry, timer, and quiet-mode state, then asks whether to delete the config too.
 
 `go` and `foot` are required to install. ZFS pools are included when `zpool` is available; otherwise only filesystems are shown.
 
@@ -66,13 +66,12 @@ Set `"enabled": false` to keep thresholds defined but skip all alerts. Set `"flu
 
 Scripts receive `OMAUSE_NAME`, `OMAUSE_WHERE`, `OMAUSE_USE_PCT`, `OMAUSE_THRESHOLD`, and size fields in the environment.
 
-Cron needs your session bus so desktop and Flux notifications still work. Example every minute (`crontab -e`):
+The installer can enable a systemd user timer (`omause-quiet.timer`) that runs every minute while you are logged in:
 
-```cron
-* * * * * XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus PATH=$HOME/.local/bin:/usr/lib/flux/bin:/usr/bin:/bin flock -n /tmp/omause-quiet.lock $HOME/.local/bin/omause -q
+```sh
+systemctl --user status omause-quiet.timer
+systemctl --user list-timers omause-quiet.timer
 ```
-
-Replace `1000` with your user id (`id -u`) if it differs.
 
 ## Keys
 

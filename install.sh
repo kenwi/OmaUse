@@ -11,13 +11,14 @@ desktop=${appdir}/omause.desktop
 bindings=${XDG_CONFIG_HOME:-$HOME/.config}/hypr/bindings.lua
 configdir=${XDG_CONFIG_HOME:-$HOME/.config}/omause
 configfile=$configdir/config.json
+unitdir=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+service_unit=$unitdir/omause-quiet.service
+timer_unit=$unitdir/omause-quiet.timer
 if [ -n "${XDG_STATE_HOME:-}" ]; then
 	statedir=$XDG_STATE_HOME/omause
 else
 	statedir=$HOME/.local/state/omause
 fi
-uid=$(id -u)
-cron_marker='# OmaUse quiet mode every minute'
 hotkey_start='-- start omause --'
 hotkey_end='-- end omause --'
 
@@ -104,38 +105,71 @@ remove_hotkey() {
 	echo "Removed hotkey from $bindings"
 }
 
-crontab_without_omause() {
-	crontab -l 2>/dev/null | awk '
+# Drop a leftover crontab entry from older installs (cronie may be absent).
+remove_legacy_crontab() {
+	command -v crontab >/dev/null 2>&1 || return 0
+	crontab -l 2>/dev/null | grep -q 'omause -q' || return 0
+	cleaned=$(crontab -l 2>/dev/null | awk '
 		/OmaUse quiet mode/ { skip = 1; next }
 		skip && /omause -q/ { skip = 0; next }
 		skip && /^[[:space:]]*$/ { next }
 		skip { skip = 0 }
 		/omause -q/ { next }
 		{ print }
-	' | awk 'NF { for (i = 1; i <= n; i++) print b[i]; n = 0; print; next } { b[++n] = $0 }'
-}
-
-install_crontab() {
-	cron_line="* * * * * XDG_RUNTIME_DIR=/run/user/${uid} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${uid}/bus PATH=${HOME}/.local/bin:/usr/lib/flux/bin:/usr/bin:/bin flock -n /tmp/omause-quiet.lock ${bin} -q"
-	{
-		crontab_without_omause
-		printf '\n%s\n%s\n' "$cron_marker" "$cron_line"
-	} | crontab -
-	echo "Crontab: omause -q every minute"
-}
-
-remove_crontab() {
-	if ! crontab -l 2>/dev/null | grep -q 'omause -q'; then
-		echo "Crontab: none"
-		return 0
-	fi
-	cleaned=$(crontab_without_omause)
+	' | awk 'NF { for (i = 1; i <= n; i++) print b[i]; n = 0; print; next } { b[++n] = $0 }')
 	if [ -z "$cleaned" ]; then
 		crontab -r 2>/dev/null || true
 	else
 		printf '%s\n' "$cleaned" | crontab -
 	fi
-	echo "Removed omause crontab entry"
+	echo "Removed legacy omause crontab entry"
+}
+
+install_timer() {
+	mkdir -p "$unitdir"
+	cat > "$service_unit" << EOF
+[Unit]
+Description=OmaUse quiet disk usage check
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=$bin -q
+Environment=PATH=$bindir:/usr/lib/flux/bin:/usr/bin:/bin
+EOF
+	cat > "$timer_unit" << 'EOF'
+[Unit]
+Description=Run OmaUse quiet check every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Persistent=true
+Unit=omause-quiet.service
+
+[Install]
+WantedBy=timers.target
+EOF
+	systemctl --user daemon-reload
+	systemctl --user enable --now omause-quiet.timer
+	remove_legacy_crontab
+	echo "Timer: omause-quiet.timer (every minute)"
+}
+
+remove_timer() {
+	if systemctl --user list-unit-files omause-quiet.timer >/dev/null 2>&1; then
+		systemctl --user disable --now omause-quiet.timer 2>/dev/null || true
+		systemctl --user stop omause-quiet.service 2>/dev/null || true
+	fi
+	if [ -e "$service_unit" ] || [ -e "$timer_unit" ]; then
+		rm -f "$service_unit" "$timer_unit"
+		systemctl --user daemon-reload 2>/dev/null || true
+		echo "Removed omause-quiet systemd user timer"
+	else
+		echo "Timer: none"
+	fi
+	remove_legacy_crontab
 }
 
 edit_config() {
@@ -163,6 +197,10 @@ do_install() {
 	fi
 	if ! command -v foot >/dev/null 2>&1; then
 		echo "foot is required to open OmaUse" >&2
+		exit 1
+	fi
+	if ! command -v systemctl >/dev/null 2>&1; then
+		echo "systemctl is required for the quiet-mode timer" >&2
 		exit 1
 	fi
 
@@ -213,11 +251,11 @@ EOF
 		echo "Skipped hotkey."
 	fi
 
-	ask "Install crontab to run omause -q every minute?" "$opt_default"
+	ask "Install systemd user timer to run omause -q every minute?" "$opt_default"
 	if [ "$ask_reply" = y ]; then
-		install_crontab
+		install_timer
 	else
-		echo "Skipped crontab."
+		echo "Skipped timer."
 	fi
 
 	ask "Edit quiet-mode config now?" "$opt_default"
@@ -231,7 +269,7 @@ EOF
 do_uninstall() {
 	echo "Uninstalling OmaUse..."
 	remove_hotkey
-	remove_crontab
+	remove_timer
 
 	rm -f "$bin" "$launch"
 	echo "Removed binaries from $bindir"
@@ -269,7 +307,7 @@ do_uninstall() {
 }
 
 case ${1:-} in
-'' )
+'')
 	do_install
 	;;
 --uninstall | -u | uninstall)
