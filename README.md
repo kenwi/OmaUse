@@ -38,7 +38,7 @@ omause -c -q    # reset, then check and notify
 ```
 
 
-Collects drive and pool usage once, applies alerts from `~/.config/omause/config.json`, then exits (no TUI). Install copies an example config if that file is missing.
+Collects drive and pool usage once, applies alerts from `~/.config/omause/config.json`, then exits (no TUI). Install copies an example config only when that file is missing; an existing config is never overwritten.
 
 Each threshold notifies once via `omarchy-notification-send`. An optional `script` runs when that level is crossed. Fired levels are stored in `~/.local/state/omause/thresholds.json` and reset when usage falls below them, so the next crossing alerts again.
 

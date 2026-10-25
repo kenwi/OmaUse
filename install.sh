@@ -23,10 +23,14 @@ install -m 755 "$root/omause-launch" "${bindir}/omause-launch"
 
 configdir=${XDG_CONFIG_HOME:-$HOME/.config}/omause
 mkdir -p "$configdir"
-if [ ! -e "$configdir/config.json" ]; then
-	install -m 644 "$root/config.example.json" "$configdir/config.json"
-	echo "Config: $configdir/config.json"
+configfile=$configdir/config.json
+if [ -e "$configfile" ]; then
+	echo "Keeping existing config: $configfile"
+else
+	install -m 644 "$root/config.example.json" "$configfile"
+	echo "Config: $configfile"
 fi
+echo "Edit $configfile to set thresholds, drives, and scripts for quiet mode (-q)."
 
 
 cat > "${appdir}/omause.desktop" << 'EOF'
