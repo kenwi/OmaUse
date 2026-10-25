@@ -14,7 +14,7 @@ The bar and percentage are green under 70%, yellow from 70% to 89%, and red at 9
 
 This builds `omause` and installs `omause-launch` into `~/.local/bin`, and adds an **OmaUse** launcher in `~/.local/share/applications`. `omause-launch` measures the table, opens foot at that character size, and Hyprland floats and centers the OmaUse window.
 
-`go` and `foot` are required. ZFS pools are included when `zpool` is available. If it is not, filesystems still show and a line says the pools could not be read.
+`go` and `foot` are required. ZFS pools are included when `zpool` is available; otherwise only filesystems are shown.
 
 ## Run
 

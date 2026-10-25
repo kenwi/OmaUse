@@ -65,7 +65,7 @@ var skippedFS = map[string]bool{
 }
 
 // Collect reads mounted filesystems and ZFS pools.
-// A pool failure still returns the filesystem rows, with Err set.
+// Missing or unreadable pools are ignored so hosts without ZFS stay quiet.
 func Collect() Snapshot {
 	data, err := os.ReadFile("/proc/self/mountinfo")
 	var mounts []mountEntry
@@ -81,10 +81,7 @@ func Collect() Snapshot {
 	})
 	pools, poolErr := readPools(mounts)
 	if poolErr != "" {
-		if fsErr != "" {
-			return Snapshot{Volumes: vols, Err: "filesystems and pools could not be read"}
-		}
-		return Snapshot{Volumes: vols, Err: poolErr}
+		return Snapshot{Volumes: vols, Err: fsErr}
 	}
 	return Snapshot{Volumes: append(vols, pools...), Err: fsErr}
 }
