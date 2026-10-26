@@ -20,7 +20,7 @@ type Threshold struct {
 	Script  string `json:"script,omitempty"`
 }
 
-// FluxSettings controls phone alerts via `flux notify`.
+// FluxSettings controls phone alerts via `flux-cli notify` (or `flux notify`).
 // JSON may be a bool ("flux": true) or an object:
 //
 //	"flux": { "enabled": true, "announce-hostname": true }

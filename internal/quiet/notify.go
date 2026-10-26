@@ -11,10 +11,11 @@ import (
 	"usage/internal/usage"
 )
 
-const (
-	notifyBin = "omarchy-notification-send"
-	fluxBin   = "flux"
-)
+const notifyBin = "omarchy-notification-send"
+
+// fluxBinNames are tried in order. flux-cli is the current command; flux is
+// the older name, kept for builds that still install that binary.
+var fluxBinNames = []string{"flux-cli", "flux"}
 
 // hardDiskGlyph is nf-md-harddisk. Omarchy's notification shell shows this
 // via the omarchy-glyph hint from -g.
@@ -85,10 +86,27 @@ func desktopNotify(headline, body, urgency string) error {
 }
 
 func fluxNotify(headline, body string) error {
-	cmd := exec.Command(fluxBin, "notify", headline, body)
+	bin, err := resolveFluxBin()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(bin, "notify", headline, body)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// resolveFluxBin returns the first flux binary on PATH.
+func resolveFluxBin() (string, error) {
+	var tried []string
+	for _, name := range fluxBinNames {
+		path, err := exec.LookPath(name)
+		if err == nil {
+			return path, nil
+		}
+		tried = append(tried, name)
+	}
+	return "", fmt.Errorf("neither %s found in PATH", strings.Join(tried, " nor "))
 }
 
 func runScript(ev Event) error {

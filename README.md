@@ -65,7 +65,7 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
 }
 ```
 
-Set `"enabled": false` to keep thresholds defined but skip all alerts. Set `"flux": true` or `"flux": { "enabled": true }` to also send each alert to your phone with `flux notify`. With `"announce-hostname": true`, the Flux title includes `on <hostname>` (desktop toasts stay unchanged). An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive.
+Set `"enabled": false` to keep thresholds defined but skip all alerts. Set `"flux": true` or `"flux": { "enabled": true }` to also send each alert to your phone with `flux-cli notify`, falling back to `flux notify` when `flux-cli` is not on `PATH`. With `"announce-hostname": true`, the Flux title includes `on <hostname>` (desktop toasts stay unchanged). An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive.
 
 Scripts receive `OMAUSE_NAME`, `OMAUSE_WHERE`, `OMAUSE_USE_PCT`, `OMAUSE_THRESHOLD`, and size fields in the environment.
 
