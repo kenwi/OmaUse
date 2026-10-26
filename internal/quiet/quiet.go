@@ -22,7 +22,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	events, next := Evaluate(snap.Volumes, cfg.Thresholds, st)
+	events, next := Evaluate(snap.Volumes, cfg.Thresholds, cfg.Ignore, st)
 	if len(events) == 0 {
 		return SaveState(next)
 	}

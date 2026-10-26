@@ -55,7 +55,8 @@ func driveMatches(drive string, v usage.Volume) bool {
 // New crossings are not marked fired here - call MarkFired after notify/script
 // succeed so a failed alert can retry on the next quiet run.
 // Thresholds with Drive set only apply to that volume.
-func Evaluate(volumes []usage.Volume, thresholds []Threshold, st State) (events []Event, next State) {
+// Mounts matching ignore are skipped, and any fired mark for them is dropped.
+func Evaluate(volumes []usage.Volume, thresholds []Threshold, ignore []string, st State) (events []Event, next State) {
 	next = State{Fired: map[string][]int{}}
 	if st.Fired == nil {
 		st.Fired = map[string][]int{}
@@ -67,6 +68,9 @@ func Evaluate(volumes []usage.Volume, thresholds []Threshold, st State) (events 
 		}
 		key := VolumeKey(vol)
 		seen[key] = true
+		if ignoredPath(vol.Where, ignore) {
+			continue
+		}
 		pct := int(math.Round(vol.UsePct))
 		prev := st.Fired[key]
 		kept := make([]int, 0, len(prev))

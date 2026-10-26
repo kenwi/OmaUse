@@ -4,6 +4,9 @@
     "enabled": false,
     "announce-hostname": false
   },
+  "ignore": [
+    "/run/media/*"
+  ],
   "thresholds": [
     {
       "percent": 80

@@ -60,9 +60,12 @@ func (f *FluxSettings) UnmarshalJSON(data []byte) error {
 // Config is the quiet-mode alert settings under ~/.config/omause.
 type Config struct {
 	// Enabled turns threshold alerts on or off. Omitted means enabled.
-	Enabled    *bool        `json:"enabled"`
-	Flux       FluxSettings `json:"flux"`
-	Thresholds []Threshold  `json:"thresholds"`
+	Enabled *bool        `json:"enabled"`
+	Flux    FluxSettings `json:"flux"`
+	// Ignore lists mount paths that never alert. A trailing * matches that
+	// path and anything mounted under it, for example "/run/media/*".
+	Ignore     []string    `json:"ignore,omitempty"`
+	Thresholds []Threshold `json:"thresholds"`
 }
 
 // AlertsEnabled is true when threshold checks should run.
@@ -127,10 +130,32 @@ func parseConfig(data []byte) (Config, error) {
 }
 
 func (c *Config) validate() error {
+	for i, p := range c.Ignore {
+		if err := validateIgnore(p); err != nil {
+			return fmt.Errorf("ignore[%d]: %w", i, err)
+		}
+	}
 	for i, t := range c.Thresholds {
 		if t.Percent < 1 || t.Percent > 100 {
 			return fmt.Errorf("thresholds[%d]: percent must be 1-100, got %d", i, t.Percent)
 		}
+	}
+	return nil
+}
+
+// validateIgnore rejects a blank pattern and a star that would match every mount.
+func validateIgnore(pattern string) error {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" {
+		return fmt.Errorf("path is empty")
+	}
+	body := pattern
+	if strings.HasSuffix(body, "*") {
+		body = strings.TrimSuffix(body, "*")
+	}
+	body = normalizeDrive(body)
+	if body == "" || body == "/" {
+		return fmt.Errorf("%q matches every mount", pattern)
 	}
 	return nil
 }
@@ -164,6 +189,53 @@ func (c *Config) normalize() {
 		out = append(out, byKey[k])
 	}
 	c.Thresholds = out
+	c.Ignore = normalizeIgnore(c.Ignore)
+}
+
+// normalizeIgnore trims, canonicalizes, and drops duplicate ignore patterns.
+// A trailing * is stored as "<path>/*".
+func normalizeIgnore(patterns []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if strings.HasSuffix(p, "*") {
+			prefix := normalizeDrive(strings.TrimSuffix(p, "*"))
+			p = prefix + "/*"
+		} else {
+			p = normalizeDrive(p)
+		}
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// ignoredPath reports whether a mount path matches an ignore pattern.
+// "/run/media/*" matches "/run/media" and any path under it.
+func ignoredPath(where string, patterns []string) bool {
+	where = normalizeDrive(where)
+	if where == "" {
+		return false
+	}
+	for _, p := range patterns {
+		if prefix, ok := strings.CutSuffix(p, "/*"); ok {
+			if where == prefix || strings.HasPrefix(where, prefix+"/") {
+				return true
+			}
+			continue
+		}
+		if where == p {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeDrive(drive string) string {
