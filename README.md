@@ -56,6 +56,12 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
   "ignore": [
     "/run/media/*"
   ],
+  "log": {
+    "enabled": true,
+    "path": "~/.local/state/omause/quiet.log",
+    "locale": "en",
+    "format": "short"
+  },
   "thresholds": [
     { "percent": 80 },
     { "percent": 90 },
@@ -69,6 +75,8 @@ Each threshold notifies once via `omarchy-notification-send`. An optional `scrip
 ```
 
 Set `"enabled": false` to keep thresholds defined but skip all alerts. Set `"flux": true` or `"flux": { "enabled": true }` to also send each alert to your phone with `flux-cli notify`, falling back to `flux notify` when `flux-cli` is not on `PATH`. With `"announce-hostname": true`, the Flux title includes `on <hostname>` (desktop toasts stay unchanged). An optional `"drive"` (mount path or volume name) limits that threshold to one volume; omit it to apply to every drive. `"ignore"` skips alert paths. Each entry in `"ignore"` is one pattern, so you can list several. `"/run/media/*"` skips `/run/media` and anything mounted under it, such as an ISO or a disc that reads as 100% full. A path without `*` skips that mount only.
+
+`"log": true` or `"log": { "enabled": true }` appends threshold fires and resets to a text file so you can see when an alert started and when usage fell again after cleanup. The default path is `~/.local/state/omause/quiet.log`; set `"path"` to override (`~` is expanded). `"locale"` is a BCP-47 language tag for the timestamp (`"en"` by default, or `"nb"` / `"nb-NO"` / `"no"` for Norwegian). `"format"` is `"short"` (default) or `"long"`; both keep seconds so you can time a cleanup. Timestamps use CLDR formatting. Each fire line notes the volume, threshold, and current usage; a script path is added only when one ran.
 
 Scripts receive `OMAUSE_NAME`, `OMAUSE_WHERE`, `OMAUSE_USE_PCT`, `OMAUSE_THRESHOLD`, and size fields in the environment.
 

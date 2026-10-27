@@ -7,6 +7,12 @@
   "ignore": [
     "/run/media/*"
   ],
+  "log": {
+    "enabled": false,
+    "path": "~/.local/state/omause/quiet.log",
+    "locale": "en",
+    "format": "short"
+  },
   "thresholds": [
     {
       "percent": 80

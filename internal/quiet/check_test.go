@@ -19,7 +19,7 @@ func TestEvaluateFireAndReset(t *testing.T) {
 	st := State{Fired: map[string][]int{}}
 
 	// Cross 80%.
-	events, next := Evaluate([]usage.Volume{vol(80)}, thresholds, nil, st)
+	events, _, next := Evaluate([]usage.Volume{vol(80)}, thresholds, nil, st)
 	if len(events) != 1 || events[0].Threshold.Percent != 80 {
 		t.Fatalf("80%%: events=%v", events)
 	}
@@ -30,7 +30,7 @@ func TestEvaluateFireAndReset(t *testing.T) {
 	st = next
 
 	// Between thresholds: no new events, 80 stays fired.
-	events, st = Evaluate([]usage.Volume{vol(85)}, thresholds, nil, st)
+	events, _, st = Evaluate([]usage.Volume{vol(85)}, thresholds, nil, st)
 	if len(events) != 0 {
 		t.Fatalf("85%%: unexpected events %v", events)
 	}
@@ -39,7 +39,7 @@ func TestEvaluateFireAndReset(t *testing.T) {
 	}
 
 	// Cross 90%: notify + script once.
-	events, next = Evaluate([]usage.Volume{vol(90)}, thresholds, nil, st)
+	events, _, next = Evaluate([]usage.Volume{vol(90)}, thresholds, nil, st)
 	if len(events) != 1 || events[0].Threshold.Percent != 90 || events[0].Threshold.Script == "" {
 		t.Fatalf("90%%: events=%v", events)
 	}
@@ -50,22 +50,26 @@ func TestEvaluateFireAndReset(t *testing.T) {
 	st = next
 
 	// Still at 90%: nothing again.
-	events, st = Evaluate([]usage.Volume{vol(92)}, thresholds, nil, st)
+	events, _, st = Evaluate([]usage.Volume{vol(92)}, thresholds, nil, st)
 	if len(events) != 0 {
 		t.Fatalf("92%%: unexpected events %v", events)
 	}
 
 	// Drop below 80%: both reset.
-	events, st = Evaluate([]usage.Volume{vol(50)}, thresholds, nil, st)
+	var resets []Reset
+	events, resets, st = Evaluate([]usage.Volume{vol(50)}, thresholds, nil, st)
 	if len(events) != 0 {
 		t.Fatalf("50%%: unexpected events %v", events)
 	}
 	if len(st.Fired["/"]) != 0 {
 		t.Fatalf("50%% fired=%v, want reset", st.Fired["/"])
 	}
+	if len(resets) != 2 || resets[0].Percent != 80 || resets[1].Percent != 90 {
+		t.Fatalf("50%% resets=%v", resets)
+	}
 
 	// Cross 80% again.
-	events, next = Evaluate([]usage.Volume{vol(80)}, thresholds, nil, st)
+	events, _, next = Evaluate([]usage.Volume{vol(80)}, thresholds, nil, st)
 	if len(events) != 1 || events[0].Threshold.Percent != 80 {
 		t.Fatalf("80%% again: events=%v", events)
 	}
@@ -78,7 +82,7 @@ func TestEvaluateFireAndReset(t *testing.T) {
 func TestEvaluateJumpPastBoth(t *testing.T) {
 	thresholds := []Threshold{{Percent: 80}, {Percent: 90, Script: "cleanup"}}
 	vol := usage.Volume{Name: "data", Where: "/data", UsePct: 95, HasSize: true}
-	events, next := Evaluate([]usage.Volume{vol}, thresholds, nil, State{})
+	events, _, next := Evaluate([]usage.Volume{vol}, thresholds, nil, State{})
 	if len(events) != 2 {
 		t.Fatalf("want both thresholds, got %v", events)
 	}
@@ -99,7 +103,7 @@ func TestEvaluatePartialReset(t *testing.T) {
 	thresholds := []Threshold{{Percent: 80}, {Percent: 90}}
 	st := State{Fired: map[string][]int{"/": {80, 90}}}
 	vol := usage.Volume{Name: "root", Where: "/", UsePct: 85, HasSize: true}
-	events, next := Evaluate([]usage.Volume{vol}, thresholds, nil, st)
+	events, _, next := Evaluate([]usage.Volume{vol}, thresholds, nil, st)
 	if len(events) != 0 {
 		t.Fatalf("events=%v", events)
 	}
@@ -156,6 +160,31 @@ func TestParseConfig(t *testing.T) {
 	if !withHost.Flux.Enabled || !withHost.Flux.AnnounceHostname {
 		t.Fatalf("flux object => %+v", withHost.Flux)
 	}
+
+	withLog, err := parseConfig([]byte(`{"log": {"enabled": true, "locale": "nb-NO", "format": "long", "path": "~/omause.log"}, "thresholds": [{"percent": 80}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !withLog.Log.Enabled || withLog.Log.Locale != "nb" || withLog.Log.Format != "long" || withLog.Log.Path != "~/omause.log" {
+		t.Fatalf("log object => %+v", withLog.Log)
+	}
+	logBool, err := parseConfig([]byte(`{"log": true, "thresholds": [{"percent": 80}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !logBool.Log.Enabled || logBool.Log.Locale != "en" || logBool.Log.Format != "short" || logBool.Log.Path == "" {
+		t.Fatalf("log:true => %+v", logBool.Log)
+	}
+	noTag, err := parseConfig([]byte(`{"log": {"enabled": true, "locale": "no"}, "thresholds": [{"percent": 80}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if noTag.Log.Locale != "nb" {
+		t.Fatalf("no should match nb, got %q", noTag.Log.Locale)
+	}
+	if _, err := parseConfig([]byte(`{"log": {"enabled": true, "locale": "norwegian"}, "thresholds": [{"percent": 80}]}`)); err == nil {
+		t.Fatal("non BCP-47 locale should be rejected")
+	}
 }
 
 func TestEvaluateDriveSpecific(t *testing.T) {
@@ -167,7 +196,7 @@ func TestEvaluateDriveSpecific(t *testing.T) {
 	root := usage.Volume{Name: "root", Where: "/", UsePct: 100, HasSize: true}
 	pool := usage.Volume{Name: "pool", Where: "/pool", UsePct: 100, HasSize: true}
 
-	events, _ := Evaluate([]usage.Volume{root, pool}, thresholds, nil, State{})
+	events, _, _ := Evaluate([]usage.Volume{root, pool}, thresholds, nil, State{})
 	rootEvents := 0
 	poolEvents := 0
 	poolScript := false
@@ -197,7 +226,7 @@ func TestEvaluateDriveSpecific(t *testing.T) {
 
 	// Drive match by name also works.
 	named := []Threshold{{Percent: 95, Drive: "pool"}}
-	events, _ = Evaluate([]usage.Volume{pool}, named, nil, State{})
+	events, _, _ = Evaluate([]usage.Volume{pool}, named, nil, State{})
 	if len(events) != 1 {
 		t.Fatalf("name match: events=%v", events)
 	}
@@ -209,7 +238,7 @@ func TestEvaluateIgnore(t *testing.T) {
 	mount := usage.Volume{Name: "media", Where: "/mnt/media", UsePct: 100, HasSize: true}
 	neighbor := usage.Volume{Name: "backup", Where: "/mnt/media-backup", UsePct: 100, HasSize: true}
 	pool := usage.Volume{Name: "pool", Where: "/pool", UsePct: 95, HasSize: true}
-	events, next := Evaluate([]usage.Volume{iso, mount, neighbor, pool}, thresholds, []string{"/mnt/media/*"}, State{
+	events, _, next := Evaluate([]usage.Volume{iso, mount, neighbor, pool}, thresholds, []string{"/mnt/media/*"}, State{
 		Fired: map[string][]int{"/mnt/media/movie.iso": {90}},
 	})
 	got := map[string]int{}
@@ -226,7 +255,7 @@ func TestEvaluateIgnore(t *testing.T) {
 		t.Fatal("ignored mount kept a fired mark")
 	}
 
-	exact, _ := Evaluate([]usage.Volume{
+	exact, _, _ := Evaluate([]usage.Volume{
 		{Name: "cd", Where: "/mnt/cdrom", UsePct: 100, HasSize: true},
 		{Name: "nested", Where: "/mnt/cdrom/extra", UsePct: 100, HasSize: true},
 	}, thresholds, []string{"/mnt/cdrom"}, State{})

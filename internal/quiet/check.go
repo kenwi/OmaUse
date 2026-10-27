@@ -13,6 +13,12 @@ type Event struct {
 	Threshold Threshold
 }
 
+// Reset is a previously fired threshold that usage has fallen below.
+type Reset struct {
+	Volume  usage.Volume
+	Percent int
+}
+
 // VolumeKey identifies a drive or pool across quiet runs.
 func VolumeKey(v usage.Volume) string {
 	if v.Where != "" && v.Where != "-" {
@@ -51,12 +57,13 @@ func driveMatches(drive string, v usage.Volume) bool {
 
 // Evaluate compares current usage to configured thresholds.
 // A threshold emits an event when use% reaches it and it is not already
-// marked fired. When use% falls below that level, the fired mark is cleared.
+// marked fired. When use% falls below that level, the fired mark is cleared
+// and a Reset is returned.
 // New crossings are not marked fired here - call MarkFired after notify/script
 // succeed so a failed alert can retry on the next quiet run.
 // Thresholds with Drive set only apply to that volume.
 // Mounts matching ignore are skipped, and any fired mark for them is dropped.
-func Evaluate(volumes []usage.Volume, thresholds []Threshold, ignore []string, st State) (events []Event, next State) {
+func Evaluate(volumes []usage.Volume, thresholds []Threshold, ignore []string, st State) (events []Event, resets []Reset, next State) {
 	next = State{Fired: map[string][]int{}}
 	if st.Fired == nil {
 		st.Fired = map[string][]int{}
@@ -84,8 +91,11 @@ func Evaluate(volumes []usage.Volume, thresholds []Threshold, ignore []string, s
 				} else {
 					events = append(events, Event{Volume: vol, Threshold: t})
 				}
+				continue
 			}
-			// Below threshold: reset (omit from kept).
+			if hasFired(prev, t.Percent) {
+				resets = append(resets, Reset{Volume: vol, Percent: t.Percent})
+			}
 		}
 		if len(kept) > 0 {
 			next.Fired[key] = kept
@@ -99,7 +109,7 @@ func Evaluate(volumes []usage.Volume, thresholds []Threshold, ignore []string, s
 		}
 		next.Fired[key] = uniqueSorted(append([]int(nil), fired...))
 	}
-	return events, next
+	return events, resets, next
 }
 
 // MarkFired records that a threshold was successfully handled for a volume.

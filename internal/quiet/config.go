@@ -57,11 +57,59 @@ func (f *FluxSettings) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// LogSettings controls quiet-mode threshold logging.
+// JSON may be a bool ("log": true) or an object:
+//
+//	"log": { "enabled": true, "path": "...", "locale": "nb", "format": "long" }
+//
+// Path defaults to ~/.local/state/omause/quiet.log. Locale is a BCP-47
+// language tag (for example "en", "nb", "nb-NO"); English is the default.
+// Format is "short" (default) or "long" for the CLDR timestamp style.
+type LogSettings struct {
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path,omitempty"`
+	Locale  string `json:"locale,omitempty"`
+	Format  string `json:"format,omitempty"`
+}
+
+// UnmarshalJSON accepts a bool or an object for log settings.
+func (l *LogSettings) UnmarshalJSON(data []byte) error {
+	s := strings.TrimSpace(string(data))
+	switch s {
+	case "true":
+		*l = LogSettings{Enabled: true}
+		return nil
+	case "false", "null", "":
+		*l = LogSettings{}
+		return nil
+	}
+	var obj struct {
+		Enabled *bool  `json:"enabled"`
+		Path    string `json:"path"`
+		Locale  string `json:"locale"`
+		Format  string `json:"format"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("log: want bool or object, got %s", s)
+	}
+	if obj.Enabled != nil {
+		l.Enabled = *obj.Enabled
+	} else {
+		// Object form without enabled implies logging is on.
+		l.Enabled = true
+	}
+	l.Path = strings.TrimSpace(obj.Path)
+	l.Locale = strings.TrimSpace(obj.Locale)
+	l.Format = strings.TrimSpace(obj.Format)
+	return nil
+}
+
 // Config is the quiet-mode alert settings under ~/.config/omause.
 type Config struct {
 	// Enabled turns threshold alerts on or off. Omitted means enabled.
 	Enabled *bool        `json:"enabled"`
 	Flux    FluxSettings `json:"flux"`
+	Log     LogSettings  `json:"log"`
 	// Ignore lists mount paths that never alert. A trailing * matches that
 	// path and anything mounted under it, for example "/run/media/*".
 	Ignore     []string    `json:"ignore,omitempty"`
@@ -130,6 +178,12 @@ func parseConfig(data []byte) (Config, error) {
 }
 
 func (c *Config) validate() error {
+	if _, err := resolveLogLocale(c.Log.Locale); err != nil {
+		return fmt.Errorf("log.locale: %w", err)
+	}
+	if _, err := resolveLogFormat(c.Log.Format); err != nil {
+		return fmt.Errorf("log.format: %w", err)
+	}
 	for i, p := range c.Ignore {
 		if err := validateIgnore(p); err != nil {
 			return fmt.Errorf("ignore[%d]: %w", i, err)
@@ -190,6 +244,13 @@ func (c *Config) normalize() {
 	}
 	c.Thresholds = out
 	c.Ignore = normalizeIgnore(c.Ignore)
+	c.Log.Locale, _ = resolveLogLocale(c.Log.Locale)
+	c.Log.Format, _ = resolveLogFormat(c.Log.Format)
+	if c.Log.Enabled && c.Log.Path == "" {
+		if p, err := DefaultLogPath(); err == nil {
+			c.Log.Path = p
+		}
+	}
 }
 
 // normalizeIgnore trims, canonicalizes, and drops duplicate ignore patterns.
